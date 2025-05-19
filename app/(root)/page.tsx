@@ -29,7 +29,7 @@ const page = () => {
         />
       </section>
 
-      <section className='flex felx-col gap-6 mt-8'>
+      <section className='flex flex-col gap-6 mt-8'>
         <h2>Your Interviews</h2>
 
         <div className='interviews-section'>

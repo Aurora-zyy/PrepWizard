@@ -25,6 +25,7 @@ const checkIconExists = async (url: string) => {
 export const getTechLogos = async (techArray: string[]) => {
   const logoURLs = techArray.map((tech) => {
     const normalized = normalizeTechName(tech);
+    /* normalize is just to standardize cases of the tech name, removing spaces  */
     return {
       tech,
       url: `${techIconBaseURL}/${normalized}/${normalized}-original.svg`,
@@ -33,6 +34,9 @@ export const getTechLogos = async (techArray: string[]) => {
 
   const results = await Promise.all(
     logoURLs.map(async ({ tech, url }) => ({
+      // if the icon exists, use the url, otherwise use the default tech.svg.
+      //Map means to create a new array with the results. And also ensure Reactjs and React.js are the same. etc.
+      //Can use ChatGpt for this type of helper utils. function.
       tech,
       url: (await checkIconExists(url)) ? url : '/tech.svg',
     }))
