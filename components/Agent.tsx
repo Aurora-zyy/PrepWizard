@@ -1,9 +1,11 @@
 'use client';
 
 import Image from 'next/image';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AgentProps } from '@/types';
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
+import { vapi } from '@/lib/vapi.sdk';
 
 enum CallStatus {
   INACTIVE = 'INACTIVE',
@@ -12,15 +14,66 @@ enum CallStatus {
   FINISHED = 'FINISHED',
 }
 
-const Agent = ({ userName }: AgentProps) => {
-  const isSpeaking = true;
-  // const [callStatus] = useState<CallStatus>(CallStatus.INACTIVE);
-  const callStatus = CallStatus.FINISHED;
-  const messages = [
-    'Whats your name?',
-    'My name is Sohia Yang, nice to meet you!',
-  ];
+interface SavedMessage {
+  role: 'user' | 'system' | 'assistant';
+  content: string;
+}
+
+const Agent = ({ userName, userId, type }: AgentProps) => {
+  const router = useRouter();
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.INACTIVE);
+  const [messages, setMessages] = useState<SavedMessage[]>([]);
+
   const lastMessage = messages[messages.length - 1];
+
+  useEffect(() => {
+    const onCallStart = () => setCallStatus(CallStatus.ACTIVE);
+    const onCallEnd = () => setCallStatus(CallStatus.FINISHED);
+
+    const onMessage = (message: Message) => {
+      if (message.type === 'transcript' && message.transcriptType === 'final') {
+        const newMessage = { role: message.role, content: message.transcript };
+        setMessages((prev) => [...prev, newMessage]);
+      }
+    };
+
+    const onSpeechStart = () => setIsSpeaking(true);
+    const onSpeechEnd = () => setIsSpeaking(false);
+
+    const onError = (error: Error) => console.error('Error:', error);
+
+    vapi.on('call-start', onCallStart);
+    vapi.on('call-end', onCallEnd);
+    vapi.on('message', onMessage);
+    vapi.on('speech-start', onSpeechStart);
+    vapi.on('speech-end', onSpeechEnd);
+    vapi.on('error', onError);
+
+    return () => {
+      vapi.off('call-start', onCallStart);
+      vapi.off('call-end', onCallEnd);
+      vapi.off('message', onMessage);
+      vapi.off('speech-start', onSpeechStart);
+      vapi.off('speech-end', onSpeechEnd);
+      vapi.off('error', onError);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (callStatus === CallStatus.FINISHED) {
+      router.push('/');
+      //if the call is finished, we need to redirect to the home page
+    }
+  }, [messages, callStatus, type, userId]);
+
+  const handleCall = async () => {
+    if (callStatus === CallStatus.INACTIVE) {
+      setCallStatus(CallStatus.CONNECTING);
+      await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!);
+      //unfinished; video 2:51:24
+    }
+  };
   return (
     <>
       <div className='call-view'>
