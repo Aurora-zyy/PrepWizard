@@ -25,8 +25,6 @@ const Agent = ({ userName, userId, type }: AgentProps) => {
   const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.INACTIVE);
   const [messages, setMessages] = useState<SavedMessage[]>([]);
 
-  const lastMessage = messages[messages.length - 1];
-
   useEffect(() => {
     const onCallStart = () => setCallStatus(CallStatus.ACTIVE);
     const onCallEnd = () => setCallStatus(CallStatus.FINISHED);
@@ -41,7 +39,11 @@ const Agent = ({ userName, userId, type }: AgentProps) => {
     const onSpeechStart = () => setIsSpeaking(true);
     const onSpeechEnd = () => setIsSpeaking(false);
 
-    const onError = (error: Error) => console.error('Error:', error);
+    const onError = (error: Error) => {
+      console.error('Vapi事件错误:', error);
+      console.dir(error, { depth: null }); // 完整打印错误对象
+      setCallStatus(CallStatus.INACTIVE); // 重置状态
+    };
 
     vapi.on('call-start', onCallStart);
     vapi.on('call-end', onCallEnd);
@@ -70,10 +72,28 @@ const Agent = ({ userName, userId, type }: AgentProps) => {
   const handleCall = async () => {
     if (callStatus === CallStatus.INACTIVE) {
       setCallStatus(CallStatus.CONNECTING);
-      await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!);
-      //unfinished; video 2:51:24
+      try {
+        await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
+          variableValues: {
+            username: userName,
+            userid: userId,
+          },
+        });
+      } catch (error) {
+        console.error('Vapi启动错误详情:', error);
+      }
     }
   };
+
+  const handleDisconnect = async () => {
+    setCallStatus(CallStatus.FINISHED);
+
+    vapi.stop();
+  };
+
+  const latestMessage = messages[messages.length - 1]?.content;
+  const isCallInactiveOrFinished =
+    callStatus === CallStatus.INACTIVE || callStatus === CallStatus.FINISHED;
   return (
     <>
       <div className='call-view'>
@@ -109,13 +129,13 @@ const Agent = ({ userName, userId, type }: AgentProps) => {
         <div className='transcript-border'>
           <div className='transcript'>
             <p
-              key={lastMessage}
+              key={latestMessage}
               className={cn(
                 'transition-opacity duration-500 opacity-0',
                 'animate-fadeIn opacity-100'
               )}
             >
-              {lastMessage}
+              {latestMessage}
             </p>
           </div>
         </div>
@@ -123,23 +143,20 @@ const Agent = ({ userName, userId, type }: AgentProps) => {
 
       <div className='w-full flex justify-center'>
         {callStatus !== CallStatus.ACTIVE ? (
-          <button className='relative btn-call'>
+          <button className='relative btn-call' onClick={handleCall}>
             <span
               className={cn(
                 'absolute animate-ping round-full opacity-75',
-                (callStatus !== 'CONNECTING') & 'hidden'
+                callStatus !== 'CONNECTING' && 'hidden'
               )}
             ></span>
 
-            <span>
-              {callStatus === CallStatus.INACTIVE ||
-              callStatus === CallStatus.FINISHED
-                ? 'Call AI Interviewer'
-                : '...'}
-            </span>
+            <span>{isCallInactiveOrFinished ? 'Call Interviewer' : '...'}</span>
           </button>
         ) : (
-          <button className='btn-disconnect'>End</button>
+          <button className='btn-disconnect' onClick={handleDisconnect}>
+            End
+          </button>
         )}
       </div>
     </>
