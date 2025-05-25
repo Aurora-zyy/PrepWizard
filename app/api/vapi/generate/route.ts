@@ -8,6 +8,40 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  //line 11-44: 兼容Vapi Assistant toolCall 的请求结构。如果之后workflow mode回到可以删除
+  const rawBody = await request.json();
+
+  // 自动兼容 toolCalls 的封装结构
+  let type, role, level, techstack, amount, userid;
+  if (
+    'message' in rawBody &&
+    rawBody.message?.toolCalls?.[0]?.function?.arguments
+  ) {
+    try {
+      const args = JSON.parse(rawBody.message.toolCalls[0].function.arguments);
+      ({ type, role, level, techstack, amount, userid } = args);
+    } catch (err) {
+      console.error('Failed to parse toolCall arguments', err);
+    }
+  } else {
+    ({ type, role, level, techstack, amount, userid } = rawBody);
+  }
+
+  if (!type || !role || !level) {
+    return Response.json(
+      {
+        success: false,
+        error: '缺少必要参数',
+        missingParams: {
+          type: !type,
+          role: !role,
+          level: !level,
+        },
+      },
+      { status: 400 }
+    );
+  }
+
   console.log('API接收到请求');
   let requestData;
 
