@@ -3,66 +3,69 @@ import { generateText } from 'ai';
 import { getRandomInterviewCover } from '@/lib/utils';
 import { db } from '@/firebase/admin';
 
+// 定义请求数据接口
+interface InterviewRequestData {
+  type?: string;
+  role?: string;
+  level?: string;
+  techstack?: string;
+  amount?: string | number;
+  userid?: string;
+  [key: string]: unknown; // 使用unknown代替any
+}
+
 export async function GET() {
   return Response.json({ success: true, data: 'THANK YOU' }, { status: 200 });
 }
 
 export async function POST(request: Request) {
-  //line 11-44: 兼容Vapi Assistant toolCall 的请求结构。如果之后workflow mode回到可以删除
-  const rawBody = await request.json();
-
-  // 自动兼容 toolCalls 的封装结构
-  let type, role, level, techstack, amount, userid;
-  if (
-    'message' in rawBody &&
-    rawBody.message?.toolCalls?.[0]?.function?.arguments
-  ) {
-    try {
-      const args = JSON.parse(rawBody.message.toolCalls[0].function.arguments);
-      ({ type, role, level, techstack, amount, userid } = args);
-    } catch (err) {
-      console.error('Failed to parse toolCall arguments', err);
-    }
-  } else {
-    ({ type, role, level, techstack, amount, userid } = rawBody);
-  }
-
-  if (!type || !role || !level) {
-    return Response.json(
-      {
-        success: false,
-        error: '缺少必要参数',
-        missingParams: {
-          type: !type,
-          role: !role,
-          level: !level,
-        },
-      },
-      { status: 400 }
-    );
-  }
-
+  // 记录请求开始
   console.log('API接收到请求');
-  let requestData;
+  let requestData: InterviewRequestData = {};
 
   try {
-    requestData = await request.json();
-    console.log('请求数据:', requestData);
+    // 解析请求体
+    const rawBody = await request.json();
+    console.log('原始请求体:', rawBody);
+
+    // 自动兼容 toolCalls 的封装结构
+    if (
+      'message' in rawBody &&
+      rawBody.message?.toolCalls?.[0]?.function?.arguments
+    ) {
+      try {
+        const args = JSON.parse(
+          rawBody.message.toolCalls[0].function.arguments
+        );
+        requestData = args;
+        console.log('从toolCall中解析的参数:', args);
+      } catch (err) {
+        console.error('Failed to parse toolCall arguments', err);
+        requestData = rawBody;
+      }
+    } else {
+      requestData = rawBody;
+    }
+
+    // 提取必要参数
     const { type, role, level, techstack, amount, userid } = requestData;
+    console.log('请求参数:', { type, role, level, techstack, amount, userid });
 
     // 验证必要参数
     if (!type || !role || !level) {
-      console.error('缺少必要参数:', { type, role, level });
+      const missingParams = { type: !type, role: !role, level: !level };
+      console.error('缺少必要参数:', missingParams);
       return Response.json(
         {
           success: false,
           error: '缺少必要参数',
-          missingParams: { type: !type, role: !role, level: !level },
+          missingParams,
         },
         { status: 400 }
       );
     }
 
+    // 生成面试问题
     console.log('开始生成面试问题');
     let questions;
     try {
@@ -98,6 +101,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // 解析问题
     console.log('解析并准备面试数据');
     let parsedQuestions;
     try {
@@ -108,6 +112,7 @@ export async function POST(request: Request) {
       parsedQuestions = [];
     }
 
+    // 构建面试数据
     const interview = {
       role,
       type,
@@ -129,6 +134,7 @@ export async function POST(request: Request) {
       createdAt: new Date().toISOString(),
     };
 
+    // 存储到Firestore
     console.log('准备存储到Firestore', interview);
     try {
       await db.collection('interviews').add(interview);
