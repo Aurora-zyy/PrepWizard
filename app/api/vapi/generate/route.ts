@@ -80,6 +80,8 @@ export async function POST(request: Request) {
     }
 
     // 📦 解析问题内容为 JSON 数组
+    //当时遇到的bug似乎就是vapi的workflow失效，under development，所以
+    //就尝试了很多别的方式...
     let parsedQuestions: string[] = [];
     try {
       parsedQuestions = JSON.parse(questionsText);
